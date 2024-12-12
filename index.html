@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="./output.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const usecurrentLocationButton = document.getElementById('usecurrentLocationButton');
+        const recentCitiesDropdown = document.getElementById('recentCitiesDropdown');
+        const displayWeather = document.getElementById('displayWeather');
+        const displayForecast = document.getElementById('displayForecast');
+
+        let recentCities = JSON.parse(localStorage.getItem('recentCities')) || [];
+
+        const showRecentCitiesDropdown = () => {
+            recentCitiesDropdown.innerHTML = '';
+            if (recentCities.length > 0) {
+                recentCitiesDropdown.style.display = 'block';
+                recentCities.forEach(city => {
+                    const cityOption = document.createElement('button');
+                    cityOption.textContent = city;
+                    cityOption.className = 'block w-full text-left px-4 py-2 hover:bg-gray-100';
+                    cityOption.addEventListener('click', () => {
+                        fetchWeather(city);
+                    });
+                    recentCitiesDropdown.appendChild(cityOption);
+                });
+            } else {
+                recentCitiesDropdown.style.display = 'none';
+            }
+        };
+
+        const fetchWeather = async (location) => {
+            try {
+                const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${location}&units=metric&appid=a42c3f9aeaa6b783ff40ed0396379336`);
+                if (!response.ok) throw new Error('Location not found');
+                const data = await response.json();
+
+                displayWeather.innerHTML = `
+                    <div class="flex items-center">
+                        <img src="http://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png" alt="Weather Icon" class="w-20 h-20">
+                        <div class="ml-4">
+                            <p class="text-4xl font-bold">${data.main.temp}°C</p>
+                            <p class="text-gray-500">${data.weather[0].description}</p>
+                        </div>
+                    </div>
+                    <p><span class="font-semibold">Location:</span> ${data.name}</p>
+                    <p><span class="font-semibold">Humidity:</span> ${data.main.humidity}%</p>
+                    <p><span class="font-semibold">Wind:</span> ${data.wind.speed} m/s</p>
+                `;
+
+                fetchForecast(location);
+
+                if (!recentCities.includes(location)) {
+                    recentCities.unshift(location);
+                    if (recentCities.length > 5) recentCities.pop();
+                    localStorage.setItem('recentCities', JSON.stringify(recentCities));
+                    showRecentCitiesDropdown();
+                }
+            } catch (error) {
+                displayWeather.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+            }
+        };
+
+        const fetchForecast = async (location) => {
+            try {
+                const response = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${location}&units=metric&appid=a42c3f9aeaa6b783ff40ed0396379336`);
+                if (!response.ok) throw new Error('Unable to fetch forecast');
+                const data = await response.json();
+
+                let forecastHTML = '<h3 class="text-xl font-bold mb-4">Forecast Details</h3>';
+                data.list.slice(0, 5).forEach(item => {
+                    forecastHTML += `
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <p class="font-semibold">${new Date(item.dt_txt).toLocaleDateString()}</p>
+                                <p>${item.weather[0].description}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <img src="http://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png" alt="Weather Icon" class="w-12 h-12">
+                                <p class="ml-4 text-lg font-bold">${item.main.temp}°C</p>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                displayForecast.innerHTML = forecastHTML;
+            } catch (error) {
+                displayForecast.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+            }
+        };
+
+        searchButton.addEventListener('click', () => {
+            const location = searchInput.value.trim();
+            if (!location) {
+                    displayWeather.innerHTML = `<p class="text-red-500">Enter a city name to search.</p>`;
+                    return;
+                }
+                fetchWeather(location);
+            });
+
+        usecurrentLocationButton.addEventListener('click', () => {
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=a42c3f9aeaa6b783ff40ed0396379336`);
+                    if (!response.ok) throw new Error('Location not found');
+                    const data = await response.json();
+                    fetchWeather(data.name);
+                } catch (error) {
+                    displayWeather.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                }
+            });
+        });
+        showRecentCitiesDropdown();
+    });
+</script>
+</head>
+
+<body class="bg-blue-50 font-sans overflow-scroll">
+    <header class="bg-emerald-500 text-white py-4 shadow-md">
+        <div class="container mx-auto px-4 flex justify-center items-center">
+            <h1 class="text-xl font-bold">Weather Forecast</h1>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 text-center">Enter the City</h2>
+            <div class="mt-4 flex justify-center">
+                <input id="searchInput" type="text" placeholder="Enter city name" class="border border-gray-300 rounded-l-md px-4 py-2 focus:ring focus:outline-none w-full max-w-md">  
+                <button id="searchButton" class="bg-emerald-500 text-white px-4 py-2 hover:bg-teal-600">Search</button>  
+            </div>
+            <div class="mt-4 flex justify-center">
+                <button id="usecurrentLocationButton" class="bg-teal-800 text-white px-4 py-2 rounded-md hover:bg-teal-950">Use Current Location</button>        
+            </div>
+            <div class="mt-4 relative w-full">
+                <button class="bg-emerald-500 text-white px-4 py-2 rounded-md w-full max-w-md ">Recently Searched Cities</button>
+                <div id="recentCitiesDropdown" class="absolute bg-white shadow-md mt-2 rounded-md w-full max-w-md hidden overflow-scroll h-32"></div>
+            </div>
+        </section>
+        <section id="displayWeather" class="bg-emerald-200 rounded-lg shadow-md p-6 mb-8"style="margin-top: 170px; margin-bottom: 5px">
+            <p>Weather Details</p>
+        </section>
+        <section id="displayForecast" class="bg-emerald-100 rounded-lg shadow-md p-6">
+            <p>Forecast of the City</p>
+        </section>
+    </main>
+</body>
+</html>
